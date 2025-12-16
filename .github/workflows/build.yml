@@ -1,0 +1,146 @@
+# GitHub Actions 自动打包工作流
+# 推送代码后自动生成 Windows (.exe) 和 macOS (.app/.dmg) 可执行文件
+
+name: Build Executables
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'  # 打标签时触发发布
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Windows executable
+        run: |
+          pyinstaller --noconfirm --onefile --windowed `
+            --name "招标公告抓取工具" `
+            --add-data "config.py;." `
+            --add-data "scraper.py;." `
+            --add-data "exporter.py;." `
+            --hidden-import "requests" `
+            --hidden-import "bs4" `
+            --hidden-import "lxml" `
+            --hidden-import "pandas" `
+            --hidden-import "openpyxl" `
+            --hidden-import "tqdm" `
+            gui_app.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-招标公告抓取工具
+          path: dist/*.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build macOS app
+        run: |
+          pyinstaller --noconfirm --onefile --windowed \
+            --name "招标公告抓取工具" \
+            --add-data "config.py:." \
+            --add-data "scraper.py:." \
+            --add-data "exporter.py:." \
+            --hidden-import "requests" \
+            --hidden-import "bs4" \
+            --hidden-import "lxml" \
+            --hidden-import "pandas" \
+            --hidden-import "openpyxl" \
+            --hidden-import "tqdm" \
+            --collect-all "lxml" \
+            --osx-bundle-identifier "com.yfbzb.scraper" \
+            gui_app.py
+
+      - name: Create DMG
+        run: |
+          # 安装 create-dmg
+          brew install create-dmg
+          
+          # 创建 DMG 文件
+          create-dmg \
+            --volname "招标公告抓取工具" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "招标公告抓取工具.app" 150 185 \
+            --app-drop-link 450 185 \
+            --hide-extension "招标公告抓取工具.app" \
+            "招标公告抓取工具.dmg" \
+            "dist/招标公告抓取工具.app" || true
+          
+          # 如果 create-dmg 失败，使用简单方法创建
+          if [ ! -f "招标公告抓取工具.dmg" ]; then
+            hdiutil create -volname "招标公告抓取工具" -srcfolder "dist/招标公告抓取工具.app" -ov -format UDZO "招标公告抓取工具.dmg"
+          fi
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-招标公告抓取工具-App
+          path: dist/*.app
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-招标公告抓取工具-DMG
+          path: "*.dmg"
+
+  # 当打标签时，创建 Release 并上传文件
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure
+        run: ls -R artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/**/*.exe
+            artifacts/**/*.dmg
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

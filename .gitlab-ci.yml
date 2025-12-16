@@ -1,0 +1,66 @@
+# GitLab CI/CD 自动打包配置
+# 推送代码后自动生成 Windows 和 macOS 可执行文件
+
+stages:
+  - build
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# Windows 打包
+build-windows:
+  stage: build
+  tags:
+    - windows
+  before_script:
+    - python --version
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+    - pip install pyinstaller
+  script:
+    - pyinstaller --noconfirm --onefile --windowed --name "招标公告抓取工具" --add-data "config.py;." --add-data "scraper.py;." --add-data "exporter.py;." gui_app.py
+  artifacts:
+    name: "Windows-招标公告抓取工具"
+    paths:
+      - dist/*.exe
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - when: manual
+      allow_failure: true
+
+# macOS 打包
+build-macos:
+  stage: build
+  tags:
+    - macos
+  before_script:
+    - python3 --version
+    - pip3 install --upgrade pip
+    - pip3 install -r requirements.txt
+    - pip3 install pyinstaller
+  script:
+    - pyinstaller --noconfirm --onefile --windowed --name "招标公告抓取工具" --add-data "config.py:." --add-data "scraper.py:." --add-data "exporter.py:." gui_app.py
+    # 创建 DMG
+    - brew install create-dmg || true
+    - |
+      create-dmg \
+        --volname "招标公告抓取工具" \
+        --window-size 600 400 \
+        --icon-size 100 \
+        --app-drop-link 450 185 \
+        "招标公告抓取工具.dmg" \
+        "dist/招标公告抓取工具.app" || hdiutil create -volname "招标公告抓取工具" -srcfolder "dist/招标公告抓取工具.app" -ov -format UDZO "招标公告抓取工具.dmg"
+  artifacts:
+    name: "macOS-招标公告抓取工具"
+    paths:
+      - dist/*.app
+      - "*.dmg"
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - when: manual
+      allow_failure: true
+

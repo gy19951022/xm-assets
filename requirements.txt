@@ -1,0 +1,25 @@
+# 乙方宝招标公告抓取工具依赖
+# 跨平台支持: Windows / macOS / Linux
+
+# HTTP请求库
+requests>=2.31.0
+
+# HTML解析库
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+
+# 数据处理和Excel生成
+pandas>=2.1.0
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# 日期时间处理
+python-dateutil>=2.8.0
+
+# 进度显示
+tqdm>=4.66.0
+
+# 控制台颜色输出
+colorama>=0.4.6
+
+
