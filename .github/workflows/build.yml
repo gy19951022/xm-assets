@@ -48,7 +48,7 @@ jobs:
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-招标公告抓取工具
+          name: Windows-BidScraper
           path: dist/*.exe
 
   build-macos:
@@ -110,13 +110,13 @@ jobs:
       - name: Upload macOS app
         uses: actions/upload-artifact@v4
         with:
-          name: macOS-招标公告抓取工具-App
+          name: macOS-BidScraper-App
           path: dist/*.app
 
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
-          name: macOS-招标公告抓取工具-DMG
+          name: macOS-BidScraper-DMG
           path: "*.dmg"
 
   # 当打标签时，创建 Release 并上传文件
