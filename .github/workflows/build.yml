@@ -53,7 +53,7 @@ jobs:
 
   # macOS Intel版本 (适用于老款Mac)
   build-macos-intel:
-    runs-on: macos-13  # Intel Mac
+    runs-on: macos-12  # Intel Mac
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
