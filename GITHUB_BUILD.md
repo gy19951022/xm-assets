@@ -13,7 +13,7 @@ git add .
 git commit -m "Initial commit"
 
 # 添加远程仓库（替换为你的仓库地址）
-git remote add origin https://github.com/你的用户名/xm-assets.git
+git remote add origin https://github.com/gy19951022/xm-assets.git
 git branch -M main
 git push -u origin main
 ```
