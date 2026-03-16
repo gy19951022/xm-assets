@@ -1,16 +1,21 @@
-# GitHub Actions 自动打包工作流
-# 推送代码后自动生成 Windows (.exe) 和 macOS (.app/.dmg) 可执行文件
-
 name: Build Executables
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: 招标公告抓取工具
+  APP_BUNDLE_ID: com.yfbzb.scraper
+  PYTHON_VERSION: "3.11"
 
 jobs:
   build-windows:
@@ -22,7 +27,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
         run: |
@@ -33,7 +38,7 @@ jobs:
       - name: Build Windows executable
         run: |
           pyinstaller --noconfirm --onefile --windowed `
-            --name "招标公告抓取工具" `
+            --name "${{ env.APP_NAME }}" `
             --add-data "config.py;." `
             --add-data "scraper.py;." `
             --add-data "exporter.py;." `
@@ -51,28 +56,37 @@ jobs:
           name: Windows-BidScraper
           path: dist/*.exe
 
-  # macOS 通用版本 (同时支持Intel和Apple Silicon)
   build-macos:
-    runs-on: macos-latest
+    name: Build macOS (${{ matrix.label }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            label: Intel
+            python_arch: x64
+            target_arch: x86_64
+            artifact_suffix: Intel
+            dmg_name: BidScraper-Mac-Intel.dmg
+            zip_name: BidScraper-Mac-Intel.zip
+          - runner: macos-14
+            label: AppleSilicon
+            python_arch: arm64
+            target_arch: arm64
+            artifact_suffix: AppleSilicon
+            dmg_name: BidScraper-Mac-AppleSilicon.dmg
+            zip_name: BidScraper-Mac-AppleSilicon.zip
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python for x86_64 (Intel)
-        run: |
-          # 安装 Rosetta 2 以支持 x86_64
-          softwareupdate --install-rosetta --agree-to-license || true
-          
-          # 使用 arch 命令安装 x86_64 版本的 Python
-          arch -x86_64 /bin/bash -c "
-            curl -O https://www.python.org/ftp/python/3.11.9/python-3.11.9-macos11.pkg
-            sudo installer -pkg python-3.11.9-macos11.pkg -target /
-          " || true
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: ${{ matrix.python_arch }}
 
       - name: Install dependencies
         run: |
@@ -80,11 +94,10 @@ jobs:
           python3 -m pip install -r requirements.txt
           python3 -m pip install pyinstaller
 
-      - name: Build macOS Universal app
+      - name: Build macOS app bundle
         run: |
-          # 构建当前架构版本
-          python3 -m PyInstaller --noconfirm --onefile --windowed \
-            --name "招标公告抓取工具" \
+          python3 -m PyInstaller --noconfirm --windowed \
+            --name "$APP_NAME" \
             --add-data "config.py:." \
             --add-data "scraper.py:." \
             --add-data "exporter.py:." \
@@ -95,43 +108,23 @@ jobs:
             --hidden-import "openpyxl" \
             --hidden-import "tqdm" \
             --collect-all "lxml" \
-            --osx-bundle-identifier "com.yfbzb.scraper" \
-            --target-arch universal2 \
-            gui_app.py || \
-          python3 -m PyInstaller --noconfirm --onefile --windowed \
-            --name "招标公告抓取工具" \
-            --add-data "config.py:." \
-            --add-data "scraper.py:." \
-            --add-data "exporter.py:." \
-            --hidden-import "requests" \
-            --hidden-import "bs4" \
-            --hidden-import "lxml" \
-            --hidden-import "pandas" \
-            --hidden-import "openpyxl" \
-            --hidden-import "tqdm" \
-            --collect-all "lxml" \
-            --osx-bundle-identifier "com.yfbzb.scraper" \
+            --osx-bundle-identifier "$APP_BUNDLE_ID" \
+            --target-arch "${{ matrix.target_arch }}" \
             gui_app.py
 
-      - name: Create DMG
+      - name: Package macOS artifacts
         run: |
-          brew install create-dmg || true
-          create-dmg \
-            --volname "招标公告抓取工具" \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --app-drop-link 450 185 \
-            "BidScraper-Mac.dmg" \
-            "dist/招标公告抓取工具.app" || \
-          hdiutil create -volname "招标公告抓取工具" -srcfolder "dist/招标公告抓取工具.app" -ov -format UDZO "BidScraper-Mac.dmg"
+          ditto -c -k --sequesterRsrc --keepParent "dist/$APP_NAME.app" "${{ matrix.zip_name }}"
+          hdiutil create -volname "$APP_NAME" -srcfolder "dist/$APP_NAME.app" -ov -format UDZO "${{ matrix.dmg_name }}"
 
-      - name: Upload macOS DMG
+      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macOS-BidScraper
-          path: "*.dmg"
+          name: macOS-BidScraper-${{ matrix.artifact_suffix }}
+          path: |
+            ${{ matrix.zip_name }}
+            ${{ matrix.dmg_name }}
 
-  # 当打标签时，创建 Release
   release:
     needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
@@ -143,10 +136,11 @@ jobs:
           path: artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/**/*.exe
+            artifacts/**/*.zip
             artifacts/**/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
