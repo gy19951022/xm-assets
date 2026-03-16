@@ -22,10 +22,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -51,7 +51,7 @@ jobs:
             gui_app.py
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Windows-BidScraper
           path: dist/*.exe
@@ -63,14 +63,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
+          - runner: macos-15-intel
             label: Intel
             python_arch: x64
             target_arch: x86_64
             artifact_suffix: Intel
             dmg_name: BidScraper-Mac-Intel.dmg
             zip_name: BidScraper-Mac-Intel.zip
-          - runner: macos-14
+          - runner: macos-15
             label: AppleSilicon
             python_arch: arm64
             target_arch: arm64
@@ -80,10 +80,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.python_arch }}
@@ -118,7 +118,7 @@ jobs:
           hdiutil create -volname "$APP_NAME" -srcfolder "dist/$APP_NAME.app" -ov -format UDZO "${{ matrix.dmg_name }}"
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: macOS-BidScraper-${{ matrix.artifact_suffix }}
           path: |
